@@ -1,3 +1,5 @@
+import 'package:event_app/navigator/navigation_bar.dart';
+import 'package:event_app/screens/home_page.dart';
 import 'package:event_app/screens/login_page.dart';
 import 'package:flutter/material.dart';
 
@@ -13,7 +15,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       theme: ThemeData(useMaterial3: true),
       debugShowCheckedModeBanner: false,
-      home: const LoginPage(),
+      home: const NavigationBarApp(),
     );
   }
 }

@@ -1,6 +1,6 @@
-import 'package:event_app/screens/detail_event_page.dart';
 import 'package:flutter/material.dart';
-
+import '../service/api_service.dart';
+import 'detail_event_page.dart';
 import '../widgets/my_carousel.dart';
 import 'detail_introduce_page.dart';
 
@@ -12,37 +12,33 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<Map<String, String>> _events = [];
+  final ApiService _apiService =
+  ApiService(baseUrl: 'http://v-mms.click/abp/api/app/');
+
+  List<dynamic> _events = [];
+  bool _isLoading = true;
+  String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
-    _events = [
-      {
-        "name": "Tech Conference 2025",
-        "image":
-        "https://www.eventsindustryforum.co.uk/images/articles/about_the_eif.jpg",
-        "date": "March 15, 2025",
-        "location": "Hanoi Convention Center, Hanoi",
-        "price": "1,500,000 VND",
-        "organizer": "Tech Innovators Co.",
-        "status": "Upcoming",
-        "description":
-        "Join us for an exciting tech conference where industry leaders share insights and the latest trends in technology. This event will feature top speakers, workshops, and networking opportunities."
-      },
-      {
-        "name": "Startup Meetup 2025",
-        "image":
-        "https://www.eventsindustryforum.co.uk/images/articles/about_the_eif.jpg",
-        "date": "April 20, 2025",
-        "location": "Saigon Startup Hub, HCMC",
-        "price": "Free",
-        "organizer": "Startup Vietnam",
-        "status": "Ongoing",
-        "description":
-        "A casual meetup for startup founders, investors, and enthusiasts to network and share ideas. Don't miss this opportunity to connect and collaborate!"
-      }
-    ];
+    _fetchEvents();
+  }
+
+  Future<void> _fetchEvents() async {
+    try {
+      final response = await _apiService.get(
+          'activity?currentPage=1&totalRow=10&Activate=true');
+      setState(() {
+        _events = response['items'];
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
   }
 
   void _handleSeeMore() {
@@ -92,7 +88,13 @@ class _HomePageState extends State<HomePage> {
               "Event",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
-            _EventList(events: _events),
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage.isNotEmpty
+                ? Center(child: Text(_errorMessage))
+                : _events.isEmpty
+                ? const Center(child: Text("No events available"))
+                : _EventList(events: _events),
           ],
         ),
       ),
@@ -101,7 +103,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _EventList extends StatelessWidget {
-  final List<Map<String, String>> events;
+  final List<dynamic> events;
 
   const _EventList({required this.events});
 
@@ -125,7 +127,7 @@ class _EventList extends StatelessWidget {
 }
 
 class _ItemEvent extends StatelessWidget {
-  final Map<String, String> event;
+  final dynamic event;
 
   const _ItemEvent({required this.event});
 
@@ -134,14 +136,17 @@ class _ItemEvent extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) => DetailEventPage(
-          eventName: event["name"]!,
-          bannerImage: event["image"]!,
-          description: event["description"]!,
-          date: event["date"]!,
-          location: event["location"]!,
-          organizer: event["organizer"]!,
-          status: event["status"]!,
-          price: event["price"]!,
+          eventName: event["name"] ?? "Unknown Event",
+          bannerImage: event["avatar"] != null
+              ? "http://v-mms.click/abp/api/app/file/image?fileName=${event['avatar']}"
+              : "",
+          description: event["note"] ?? "",
+          date: event["takesPlaceDay"] ?? "",
+          location: event["address"] ?? "",
+          organizer: "Unknown Organizer",
+          eventId: event["id"] ?? "",
+          status: event["activate"] == true ? "Active" : "Inactive",
+          price: "\$${event["expectedCosts"]?.toStringAsFixed(2) ?? '0.00'}",
         ),
       ),
     );
@@ -161,7 +166,9 @@ class _ItemEvent extends StatelessWidget {
                 topRight: Radius.circular(12),
               ),
               child: Image.network(
-                event["image"]!,
+                event["avatar"] != null
+                    ? "http://v-mms.click/abp/api/app/file/image?fileName=${event['avatar']}"
+                    : "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Image_not_available.png/640px-Image_not_available.png",
                 height: 200,
                 fit: BoxFit.fitWidth,
                 width: double.infinity,
@@ -184,7 +191,7 @@ class _ItemEvent extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          event["name"]!,
+                          event["name"] ?? "Unknown Event",
                           style: const TextStyle(
                               fontSize: 20, fontWeight: FontWeight.w600),
                         ),
@@ -196,11 +203,14 @@ class _ItemEvent extends StatelessWidget {
                               size: 16,
                               color: Colors.grey,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              event["date"]!,
-                              style: const TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.w300),
+                            Container(
+                              margin: const EdgeInsets.only(left: 6),
+                              child: Text(
+                                event["takesPlaceDay"]?.split("T")[0] ??
+                                    "Unknown Date",
+                                style: const TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.w300),
+                              ),
                             ),
                           ],
                         ),
@@ -212,11 +222,13 @@ class _ItemEvent extends StatelessWidget {
                               size: 16,
                               color: Colors.grey,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              event["location"]!,
-                              style: const TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.w300),
+                            Container(
+                              margin: const EdgeInsets.only(left: 6),
+                              child: Text(
+                                event["address"] ?? "Unknown Location",
+                                style: const TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.w300),
+                              ),
                             ),
                           ],
                         ),
@@ -231,7 +243,7 @@ class _ItemEvent extends StatelessWidget {
                       children: [
                         const Text("Participation fee"),
                         Text(
-                          event["price"]!,
+                          "\$${event["expectedCosts"]?.toStringAsFixed(2) ?? '0.00'}",
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ],

@@ -1,10 +1,14 @@
+import 'dart:convert';
+import 'package:event_app/service/api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BuyTicketPage extends StatefulWidget {
   final String eventName;
   final String eventDate;
   final String eventLocation;
   final String ticketPrice;
+  final String activityId; // Thêm ID của event
 
   const BuyTicketPage({
     super.key,
@@ -12,6 +16,7 @@ class BuyTicketPage extends StatefulWidget {
     required this.eventDate,
     required this.eventLocation,
     required this.ticketPrice,
+    required this.activityId,
   });
 
   @override
@@ -21,16 +26,72 @@ class BuyTicketPage extends StatefulWidget {
 class _BuyTicketPageState extends State<BuyTicketPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   int _ticketCount = 1;
+  String? _memberId;
+  bool _userExist = false;
+  final ApiService _apiService = ApiService(baseUrl: 'http://v-mms.click/abp/api');
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+  }
+
+  /// Lấy thông tin user từ SharedPreferences
+  Future<void> _loadUserInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString("userData");
+
+    if (userData != null) {
+      _userExist = true;
+      final data = jsonDecode(userData);
+      setState(() {
+        _nameController.text = data['user']['fullName'] ?? "Khách";
+        _emailController.text = data['email'] ?? "";
+        _phoneController.text = data['phoneNumber'] ?? "";
+        _memberId = data?['id'];
+      });
+    }
+  }
 
   void _registerTicket() {
-    if (_nameController.text.isEmpty || _emailController.text.isEmpty) {
+    if (_nameController.text.isEmpty || _emailController.text.isEmpty || _phoneController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all the fields')),
       );
       return;
     }
+    _handleSendRequestRegister();
+  }
 
+  Future<void> _handleSendRequestRegister() async {
+    final requestPayload = {
+      if (_memberId != null) "memberId": _memberId, // Chỉ thêm nếu có memberId
+      "activityId": widget.activityId,
+      "phoneNumber": _phoneController.text,
+      "quantity": _ticketCount,
+      "email": _emailController.text,
+      "name": _nameController.text,
+    };
+
+    try {
+      final response = await _apiService.post('/app/ticket', body: requestPayload);
+      if (response != null) {
+        _showMessageSuccess();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to register ticket. Please try again.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  void _showMessageSuccess() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -46,6 +107,12 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
         ],
       ),
     );
+  }
+
+  String _getTotalPrice() {
+    double priceValue = double.parse(widget.ticketPrice.replaceAll("\$", ""));
+    double totalPrice = priceValue * _ticketCount;
+    return '\$${totalPrice.toStringAsFixed(2)}';
   }
 
   @override
@@ -78,7 +145,6 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
             Text('Location: ${widget.eventLocation}'),
             Text('Price per ticket: ${widget.ticketPrice}'),
             const Divider(height: 32),
-
             const Text(
               'Enter your information:',
               style: TextStyle(
@@ -89,6 +155,7 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
+              enabled: !_userExist,
               decoration: const InputDecoration(
                 labelText: 'Full Name',
                 border: OutlineInputBorder(),
@@ -97,13 +164,24 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
             const SizedBox(height: 16),
             TextField(
               controller: _emailController,
+              enabled: !_userExist,
+              keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
                 labelText: 'Email',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
-
+            TextField(
+              controller: _phoneController,
+              enabled: !_userExist,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Phone',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -140,9 +218,8 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
               ],
             ),
             const SizedBox(height: 16),
-
             Text(
-              'Total Price: ${_ticketCount * int.parse(widget.ticketPrice.replaceAll(RegExp(r'\D'), ''))} VND',
+              'Total Price: ${_getTotalPrice()}',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -150,7 +227,6 @@ class _BuyTicketPageState extends State<BuyTicketPage> {
               ),
             ),
             const Spacer(),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(

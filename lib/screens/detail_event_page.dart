@@ -11,6 +11,7 @@ class DetailEventPage extends StatelessWidget {
   final String organizer;
   final String status;
   final String price;
+  final String eventId;
 
   const DetailEventPage({
     super.key,
@@ -22,6 +23,7 @@ class DetailEventPage extends StatelessWidget {
     required this.organizer,
     required this.status,
     required this.price,
+    required this.eventId,
   });
 
   _handleBuyTicket(BuildContext context){
@@ -29,6 +31,7 @@ class DetailEventPage extends StatelessWidget {
       eventName: eventName,
       eventDate: date,
       eventLocation: location,
+      activityId: eventId,
       ticketPrice: price,),));
   }
 

@@ -1,151 +1,157 @@
-import 'package:event_app/screens/login_page.dart';
 import 'package:flutter/material.dart';
-import 'edit_profile_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert'; // For JSON decoding
+import 'edit_profile_page.dart'; // Import màn EditProfilePage
 
 class ProfilePage extends StatefulWidget {
-
-  const ProfilePage({super.key});
+  const ProfilePage({Key? key}) : super(key: key);
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final String _profileImage =
-      'https://icdn.24h.com.vn/upload/3-2024/images/2024-08-13/Cong-ty-cua-Son-Tung-M-TP-bi-buoc-boi-thuong-hon-6-ty-dong-co-quy-mo-the-nao-son-tung-1723526989-349-width740height740.jpg';
+  String fullName = "Khách";
+  String email = "";
+  String phone = "";
+  String avatar = "";
 
-  final String _fullName = 'Nguyen Van A';
-
-  final String _email = 'nguyenvana@example.com';
-
-  final String _phone = '0123456789';
-
-  _handleLogOut(){
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Log Out'),
-          content: const Text('Are you sure you want to log out?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage(),));
-              },
-              child: const Text('Log Out'),
-            ),
-          ],
-        );
-      },
-    );
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
   }
 
-  _handleEdit(){
-    Navigator.push(
+  Future<void> _loadProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString("userData");
+
+    if (userData != null) {
+      final data = jsonDecode(userData);
+      setState(() {
+        fullName = data['user']['fullName'] ?? "Khách";
+        avatar = data['user']['avatar'] ?? "";
+        email = data['email'] ?? "";
+        phone = data['phoneNumber'] ?? "";
+      });
+    }
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove("userData");
+    setState(() {
+      fullName = "Khách";
+      email = "";
+      phone = "";
+      avatar = "";
+    });
+  }
+
+  Future<void> _navigateToEditProfile() async {
+    final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => EditProfilePage(
-          fullName: _fullName,
-          email: _email,
-          phone: _phone,
-        ),
-      ),
+      MaterialPageRoute(builder: (context) => const EditProfilePage()),
     );
+
+    if (result != null) {
+      _loadProfile();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          "Profile",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.blueAccent,
         centerTitle: true,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_note_rounded, color: Colors.white,),
-            onPressed: _handleEdit,
-          ),
-        ],
       ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Ảnh đại diện
-            Center(
-              child: CircleAvatar(
-                radius: 75,
-                backgroundImage: NetworkImage(_profileImage),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              elevation: 5,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildInfoRow(Icons.person, 'Full Name', _fullName),
-                    const SizedBox(height: 12),
-                    _buildInfoRow(Icons.email, 'Email', _email),
-                    const SizedBox(height: 12),
-                    _buildInfoRow(Icons.phone, 'Phone', _phone),
-                  ],
+            // Avatar
+            CircleAvatar(
+              radius: 60,
+              backgroundColor: Colors.grey[200],
+              child: fullName == "Khách"
+                  ? Icon(
+                Icons.person_outline,
+                size: 80,
+                color: Colors.blueAccent,
+              )
+                  : ClipOval(
+                child: Image.network(
+                  'http://v-mms.click/abp/api/app/file/image?fileName=$avatar', // URL của avatar
+                  width: 120,
+                  height: 120,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Xử lý khi URL avatar không hợp lệ
+                    return Icon(
+                      Icons.person,
+                      size: 80,
+                      color: Colors.blueAccent,
+                    );
+                  },
+                  loadingBuilder: (context, child, loadingProgress) {
+                    // Hiển thị spinner khi ảnh đang tải
+                    if (loadingProgress == null) {
+                      return child;
+                    }
+                    return const CircularProgressIndicator();
+                  },
                 ),
               ),
             ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _handleLogOut,
+
+            const SizedBox(height: 16),
+            // Full name
+            Text(
+              fullName,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            // Email and phone
+            ListTile(
+              leading: const Icon(Icons.email, color: Colors.blueAccent),
+              title: const Text("Email"),
+              subtitle: Text(email.isNotEmpty ? email : "Chưa có thông tin"),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.phone, color: Colors.blueAccent),
+              title: const Text("Phone"),
+              subtitle: Text(phone.isNotEmpty ? phone : "Chưa có thông tin"),
+            ),
+            const Divider(),
+            const SizedBox(height: 16),
+            // Action Button
+            ElevatedButton.icon(
+              onPressed: fullName == "Khách"
+                  ? _navigateToEditProfile
+                  : _logout,
+              icon: Icon(fullName == "Khách"
+                  ? Icons.edit
+                  : Icons.logout),
+              label: Text(
+                fullName == "Khách" ? "Cập nhật thông tin" : "Đăng xuất",
+              ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                "Log out",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.blueAccent, size: 30),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Text(
-            '$label: $value',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

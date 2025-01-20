@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import '../service/api_service.dart';
 import 'detail_event_page.dart';
 
 class EventPage extends StatefulWidget {
@@ -10,32 +10,34 @@ class EventPage extends StatefulWidget {
 }
 
 class _EventPageState extends State<EventPage> {
-  // Danh sách sự kiện
-  final List<Map<String, String>> _events = [
-    {
-      "name": "Tech Conference 2025",
-      "bannerImage": "https://jandevents.com/wp-content/uploads/jand-party.jpg",
-      "description":
-      "Join us for an exciting tech conference where industry leaders share insights and the latest trends in technology.",
-      "date": "March 15, 2025",
-      "location": "Hanoi Convention Center, Hanoi",
-      "organizer": "Tech Innovators Co.",
-      "status": "Upcoming",
-      "price": "500.000 VND",
-    },
-    {
-      "name": "Art Exhibition 2025",
-      "bannerImage": "https://jandevents.com/wp-content/uploads/jand-party.jpg",
-      "description":
-      "Discover stunning artworks from around the globe at the annual Art Exhibition.",
-      "date": "April 10, 2025",
-      "location": "Art Center, Ho Chi Minh City",
-      "organizer": "Artistic Minds",
-      "status": "Upcoming",
-      "price": "300.000 VND",
-    },
-    // Thêm các sự kiện khác ở đây
-  ];
+  final ApiService _apiService =
+  ApiService(baseUrl: 'http://v-mms.click/abp/api/app/');
+
+  List<dynamic> _events = [];
+  bool _isLoading = true;
+  String _errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEvents();
+  }
+
+  Future<void> _fetchEvents() async {
+    try {
+      final response = await _apiService.get(
+          'activity?currentPage=1&totalRow=10&Activate=true');
+      setState(() {
+        _events = response['items'];
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,21 +47,20 @@ class _EventPageState extends State<EventPage> {
         backgroundColor: Colors.blueAccent,
         centerTitle: true,
       ),
-      body: Padding(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage.isNotEmpty
+          ? Center(child: Text(_errorMessage))
+          : _events.isEmpty
+          ? const Center(child: Text("No events available"))
+          : Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ListView.builder(
-                itemCount: _events.length,
-                itemBuilder: (context, index) {
-                  final event = _events[index];
-                  return _ItemEvent(event: event);
-                },
-              ),
-            ),
-          ],
+        child: ListView.builder(
+          itemCount: _events.length,
+          itemBuilder: (context, index) {
+            final event = _events[index];
+            return _ItemEvent(event: event);
+          },
         ),
       ),
     );
@@ -67,7 +68,7 @@ class _EventPageState extends State<EventPage> {
 }
 
 class _ItemEvent extends StatelessWidget {
-  final Map<String, String> event;
+  final dynamic event;
 
   const _ItemEvent({required this.event});
 
@@ -77,13 +78,16 @@ class _ItemEvent extends StatelessWidget {
       MaterialPageRoute(
         builder: (context) => DetailEventPage(
           eventName: event["name"] ?? "Unknown Event",
-          bannerImage: event["bannerImage"] ?? "",
-          description: event["description"] ?? "",
-          date: event["date"] ?? "",
-          location: event["location"] ?? "",
-          organizer: event["organizer"] ?? "",
-          status: event["status"] ?? "",
-          price: event["price"] ?? "",
+          bannerImage: event["avatar"] != null
+              ? "http://v-mms.click/abp/api/app/file/image?fileName=${event['avatar']}"
+              : "",
+          description: event["note"] ?? "",
+          date: event["takesPlaceDay"] ?? "",
+          location: event["address"] ?? "",
+          organizer: "Unknown Organizer",
+          eventId: event["id"] ?? "",
+          status: event["activate"] == true ? "Active" : "Inactive",
+          price: "\$${event["expectedCosts"]?.toStringAsFixed(2) ?? '0.00'}",
         ),
       ),
     );
@@ -101,7 +105,9 @@ class _ItemEvent extends StatelessWidget {
               borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(12), topRight: Radius.circular(12)),
               child: Image.network(
-                event["bannerImage"] ?? "",
+                event["avatar"] != null
+                    ? "http://v-mms.click/abp/api/app/file/image?fileName=${event['avatar']}"
+                    : "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Image_not_available.png/640px-Image_not_available.png",
                 height: 200,
                 fit: BoxFit.fitWidth,
                 width: double.infinity,
@@ -139,7 +145,8 @@ class _ItemEvent extends StatelessWidget {
                             Container(
                               margin: const EdgeInsets.only(left: 6),
                               child: Text(
-                                event["date"] ?? "Unknown Date",
+                                event["takesPlaceDay"]?.split("T")[0] ??
+                                    "Unknown Date",
                                 style: const TextStyle(
                                     fontSize: 12, fontWeight: FontWeight.w300),
                               ),
@@ -157,7 +164,7 @@ class _ItemEvent extends StatelessWidget {
                             Container(
                               margin: const EdgeInsets.only(left: 6),
                               child: Text(
-                                event["location"] ?? "Unknown Location",
+                                event["address"] ?? "Unknown Location",
                                 style: const TextStyle(
                                     fontSize: 12, fontWeight: FontWeight.w300),
                               ),
@@ -175,7 +182,7 @@ class _ItemEvent extends StatelessWidget {
                       children: [
                         const Text("Participation fee"),
                         Text(
-                          event["price"] ?? "Unknown Price",
+                          "\$${event["expectedCosts"]?.toStringAsFixed(2) ?? '0.00'}",
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ],
